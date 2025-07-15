@@ -62,7 +62,6 @@ export default function FitnessApp() {
   const [workoutDescription, setWorkoutDescription] = useState("");
 
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
   const isLoadingFromStore = useRef(false);
 
   // Form state
@@ -72,14 +71,6 @@ export default function FitnessApp() {
   const [exerciseDuration, setExerciseDuration] = useState("");
   const [restTime, setRestTime] = useState("");
   const [videoUrl, setVideoUrl] = useState("");
-
-  // Initialize audio context
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      audioContextRef.current = new (window.AudioContext ||
-        (window as any).webkitAudioContext)();
-    }
-  }, []);
 
   // Load current workout from store only on mount
   useEffect(() => {
@@ -129,7 +120,7 @@ export default function FitnessApp() {
       name: finalExerciseName,
       duration: Number.parseInt(exerciseDuration),
       restTime: Number.parseInt(restTime),
-      videoUrl: finalVideoUrl || `https://www.youtube.com/watch?v=dQw4w9WgXcQ`, // Default video
+      videoUrl: finalVideoUrl,
     };
 
     if (editingExercise) {
