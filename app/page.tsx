@@ -19,20 +19,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Play, Pause, SkipForward, Trash2, Edit } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Plus,
+  Play,
+  Pause,
+  SkipForward,
+  Trash2,
+  Edit,
+  Save,
+  BookOpen,
+} from "lucide-react";
 import confetti from "canvas-confetti";
 import exerciseData from "@/data/exercises.json";
-
-interface Exercise {
-  id: string;
-  name: string;
-  duration: number; // in seconds
-  restTime: number; // in seconds
-  videoUrl: string;
-  description?: string;
-  category?: string;
-  equipment?: string;
-}
+import { useWorkoutStore } from "@/store/workoutStore";
+import type { Exercise } from "@/store/workoutStore";
+import Link from "next/link";
 
 interface PredefinedExercise {
   id: number;
@@ -44,6 +46,7 @@ interface PredefinedExercise {
 }
 
 export default function FitnessApp() {
+  const { saveWorkout, currentWorkout, setCurrentWorkout } = useWorkoutStore();
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [isWorkoutActive, setIsWorkoutActive] = useState(false);
   const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
@@ -53,8 +56,14 @@ export default function FitnessApp() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingExercise, setEditingExercise] = useState<Exercise | null>(null);
 
+  // Save workout dialog state
+  const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
+  const [workoutName, setWorkoutName] = useState("");
+  const [workoutDescription, setWorkoutDescription] = useState("");
+
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const isLoadingFromStore = useRef(false);
 
   // Form state
   const [selectedExercise, setSelectedExercise] = useState<string>("");
@@ -72,38 +81,21 @@ export default function FitnessApp() {
     }
   }, []);
 
-  // Create beep sound
-  const playBeep = (frequency = 800, duration = 200) => {
-    if (!audioContextRef.current) return;
-
-    const oscillator = audioContextRef.current.createOscillator();
-    const gainNode = audioContextRef.current.createGain();
-
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContextRef.current.destination);
-
-    oscillator.frequency.value = frequency;
-    oscillator.type = "sine";
-
-    gainNode.gain.setValueAtTime(0.3, audioContextRef.current.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(
-      0.01,
-      audioContextRef.current.currentTime + duration / 1000
-    );
-
-    oscillator.start(audioContextRef.current.currentTime);
-    oscillator.stop(audioContextRef.current.currentTime + duration / 1000);
-  };
-
-  // Speak countdown numbers
-  const speakCountdown = (number: number) => {
-    if ("speechSynthesis" in window) {
-      const utterance = new SpeechSynthesisUtterance(number.toString());
-      utterance.rate = 1.2;
-      utterance.volume = 0.8;
-      speechSynthesis.speak(utterance);
+  // Load current workout from store only on mount
+  useEffect(() => {
+    if (currentWorkout.length > 0 && exercises.length === 0) {
+      isLoadingFromStore.current = true;
+      setExercises(currentWorkout);
+      isLoadingFromStore.current = false;
     }
-  };
+  }, [currentWorkout]); // Removed exercises dependency to prevent loop
+
+  // Update store when exercises change, but only if not loading from store
+  useEffect(() => {
+    if (!isLoadingFromStore.current) {
+      setCurrentWorkout(exercises);
+    }
+  }, [exercises, setCurrentWorkout]);
 
   // Trigger confetti
   const triggerConfetti = () => {
@@ -241,11 +233,6 @@ export default function FitnessApp() {
               return 0;
             }
           } else {
-            // Countdown audio cues
-            if (prev <= 3 && prev > 0) {
-              speakCountdown(prev - 1);
-              playBeep(prev === 1 ? 1000 : 800);
-            }
             return prev - 1;
           }
         });
@@ -297,14 +284,57 @@ export default function FitnessApp() {
     }
   };
 
+  // Save current workout
+  const handleSaveWorkout = () => {
+    if (!workoutName.trim() || exercises.length === 0) return;
+
+    saveWorkout(
+      workoutName.trim(),
+      exercises,
+      workoutDescription.trim() || undefined
+    );
+    setWorkoutName("");
+    setWorkoutDescription("");
+    setIsSaveDialogOpen(false);
+
+    // Show success feedback
+    triggerConfetti();
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 p-4">
       <div className="max-w-6xl mx-auto">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex-1"></div>
+            <div className="flex-1 text-center">
+              <h1 className="text-4xl md:text-6xl font-bold text-white mb-4 bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-purple-400">
+                OpenFit
+              </h1>
+              <p className="text-gray-300 text-lg">
+                Your Personal Workout Companion
+              </p>
+            </div>
+            <div className="flex-1 flex justify-end">
+              <Link href="/workouts">
+                <Button
+                  variant="ghost"
+                  className="text-white hover:bg-white/10 p-3"
+                >
+                  <BookOpen className="h-5 w-5 mr-2" />
+                  Saved Workouts
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </div>
+
         {!isWorkoutActive ? (
           /* Exercise Management View */
           <div className="space-y-6">
-            {/* Add Exercise Button */}
-            <div className="flex justify-center">
+            {/* Action Buttons */}
+            <div className="flex justify-center gap-4">
               <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                 <DialogTrigger asChild>
                   <Button
@@ -424,69 +454,151 @@ export default function FitnessApp() {
             </div>
 
             {/* Exercise List */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {exercises.map((exercise) => (
-                <Card
-                  key={exercise.id}
-                  className="bg-white/10 backdrop-blur-md border border-white/20 text-white"
-                >
-                  <CardHeader className="pb-3">
-                    <div className="flex justify-between items-start">
-                      <CardTitle className="text-lg">{exercise.name}</CardTitle>
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => editExercise(exercise)}
-                          className="h-8 w-8 p-0 hover:bg-white/20"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => deleteExercise(exercise.id)}
-                          className="h-8 w-8 p-0 hover:bg-red-500/20 text-red-400"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+            {exercises.length === 0 ? (
+              <div className="text-center py-16">
+                <Plus className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                <h2 className="text-2xl font-semibold text-white mb-2">
+                  No exercises added yet
+                </h2>
+                <p className="text-gray-400 mb-6">
+                  Add your first exercise to get started!
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {exercises.map((exercise) => (
+                  <Card
+                    key={exercise.id}
+                    className="bg-white/10 backdrop-blur-md border border-white/20 text-white"
+                  >
+                    <CardHeader className="pb-3">
+                      <div className="flex justify-between items-start">
+                        <CardTitle className="text-lg">
+                          {exercise.name}
+                        </CardTitle>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => editExercise(exercise)}
+                            className="h-8 w-8 p-0 hover:bg-white/20"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => deleteExercise(exercise.id)}
+                            className="h-8 w-8 p-0 hover:bg-red-500/20 text-red-400"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="aspect-video mb-4 rounded-lg overflow-hidden bg-black/20">
-                      {exercise.videoUrl ? (
-                        <img
-                          src={`https://img.youtube.com/vi/${getYouTubeVideoId(
-                            exercise.videoUrl
-                          )}/maxresdefault.jpg`}
-                          alt={exercise.name}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.src = "/placeholder.svg";
-                          }}
-                        />
-                      ) : (
-                        <img
-                          src="/placeholder.svg"
-                          alt={exercise.name}
-                          className="w-full h-full object-cover"
-                        />
-                      )}
-                    </div>
-                    <div className="flex justify-between text-sm text-gray-300">
-                      <span>Duration: {formatTime(exercise.duration)}</span>
-                      <span>Rest: {formatTime(exercise.restTime)}</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="aspect-video mb-4 rounded-lg overflow-hidden bg-black/20">
+                        {exercise.videoUrl ? (
+                          <img
+                            src={`https://img.youtube.com/vi/${getYouTubeVideoId(
+                              exercise.videoUrl
+                            )}/maxresdefault.jpg`}
+                            alt={exercise.name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.src = "/placeholder.svg";
+                            }}
+                          />
+                        ) : (
+                          <img
+                            src="/placeholder.svg"
+                            alt={exercise.name}
+                            className="w-full h-full object-cover"
+                          />
+                        )}
+                      </div>
+                      <div className="flex justify-between text-sm text-gray-300">
+                        <span>Duration: {formatTime(exercise.duration)}</span>
+                        <span>Rest: {formatTime(exercise.restTime)}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
 
-            {/* Start Workout Button */}
+            {/* Action Buttons */}
             {exercises.length > 0 && (
-              <div className="flex justify-center mt-8">
+              <div className="flex justify-center gap-4 mt-8">
+                <Dialog
+                  open={isSaveDialogOpen}
+                  onOpenChange={setIsSaveDialogOpen}
+                >
+                  <DialogTrigger asChild>
+                    <Button className="bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 text-white px-8 py-3 rounded-2xl transition-all duration-300">
+                      <Save className="mr-2 h-5 w-5" />
+                      Save Workout
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="bg-black/50 backdrop-blur-xl border border-white/20 text-white">
+                    <DialogHeader>
+                      <DialogTitle>Save Workout</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="workout-name">Workout Name *</Label>
+                        <Input
+                          id="workout-name"
+                          value={workoutName}
+                          onChange={(e) => setWorkoutName(e.target.value)}
+                          className="bg-white/10 border-white/20 text-white placeholder:text-gray-400"
+                          placeholder="e.g., Morning HIIT Routine"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="workout-description">
+                          Description (optional)
+                        </Label>
+                        <Textarea
+                          id="workout-description"
+                          value={workoutDescription}
+                          onChange={(e) =>
+                            setWorkoutDescription(e.target.value)
+                          }
+                          className="bg-white/10 border-white/20 text-white placeholder:text-gray-400 resize-none"
+                          placeholder="Describe your workout..."
+                          rows={3}
+                        />
+                      </div>
+                      <div className="bg-white/5 rounded-lg p-3">
+                        <p className="text-sm text-gray-300 mb-1">
+                          This workout contains {exercises.length} exercise
+                          {exercises.length !== 1 ? "s" : ""}
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          Total duration: ~
+                          {Math.round(
+                            exercises.reduce(
+                              (acc, ex) => acc + ex.duration + ex.restTime,
+                              0
+                            ) / 60
+                          )}{" "}
+                          minutes
+                        </p>
+                      </div>
+                      <Button
+                        onClick={handleSaveWorkout}
+                        disabled={!workoutName.trim()}
+                        className="w-full bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600 disabled:opacity-50"
+                      >
+                        <Save className="mr-2 h-4 w-4" />
+                        Save Workout
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+
                 <Button
                   onClick={startWorkout}
                   className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white px-12 py-4 rounded-2xl text-xl font-semibold transition-all duration-300 transform hover:scale-105"
