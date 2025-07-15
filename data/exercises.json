@@ -1,0 +1,36 @@
+{
+  "exercises": [
+    {
+      "id": 1,
+      "name": "Push Up",
+      "description": "A basic exercise to strengthen the upper body.",
+      "category": "Strength",
+      "equipment": "None",
+      "videoUrl": "https://www.youtube.com/watch?v=WDIpL0pjun0"
+    },
+    {
+      "id": 2,
+      "name": "Jumping Jack",
+      "description": "A full-body exercise that increases your heart rate.",
+      "category": "Cardio",
+      "equipment": "None",
+      "videoUrl": "https://www.youtube.com/watch?v=uLVt6u15L98"
+    },
+    {
+      "id": 4,
+      "name": "Burpee",
+      "description": "Full-body exercise combining squat, plank, push-up, and jump.",
+      "category": "HIIT",
+      "equipment": "None",
+      "videoUrl": "https://www.youtube.com/watch?v=TU8QYVW0gDU"
+    },
+    {
+      "id": 5,
+      "name": "Mountain Climber",
+      "description": "High-intensity cardio exercise in plank position.",
+      "category": "Cardio",
+      "equipment": "None",
+      "videoUrl": "https://www.youtube.com/watch?v=kLh-uczlPLg"
+    }
+  ]
+}
